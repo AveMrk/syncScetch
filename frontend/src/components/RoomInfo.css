@@ -1,0 +1,109 @@
+.room-info {
+  width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px;
+  background: #ffffff;
+  border-left: 1px solid #e2e8f0;
+  overflow-y: auto;
+}
+
+.room-info__block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.room-info__label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.room-info__id {
+  font-size: 15px;
+}
+
+.room-info__copy {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+}
+
+.room-info__copy:hover {
+  background: #f8fafc;
+}
+
+.room-info__status {
+  font-size: 14px;
+}
+
+.room-info__status_online {
+  color: #15803d;
+}
+
+.room-info__status_connecting {
+  color: #b45309;
+}
+
+.room-info__status_offline {
+  color: #b91c1c;
+}
+
+.room-info__users {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.room-info__users li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-info__dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.room-info__error {
+  margin: 0;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.room-info__back {
+  margin-top: auto;
+  font-size: 14px;
+}
+
+@media (max-width: 720px) {
+  .room-info {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    border-left: none;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .room-info__users {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .room-info__back {
+    margin-top: 0;
+  }
+}

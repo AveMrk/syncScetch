@@ -1,62 +1,177 @@
-# Base44 Project
+# Whiteboard MVP
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+Многопользовательская рисовалка: несколько браузеров открывают одну комнату и рисуют на общем холсте.
+Действия одного участника передаются остальным через WebSocket практически в реальном времени.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+> Это учебный MVP (первый этап курсового проекта). Проект **не является production-ready**: здесь нет
+> базы данных, авторизации, персистентности и production-инфраструктуры — это осознанное упрощение.
 
-## Prerequisites
+## Стек
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
-5. Install [Deno](https://docs.deno.com/runtime/getting_started/installation/) — the local Base44 backend runs on it.
+| Часть      | Технологии                                                                   |
+| ---------- | ---------------------------------------------------------------------------- |
+| Backend    | Python 3.12+, FastAPI, WebSocket (Starlette), Pydantic, storage в памяти      |
+| Frontend   | React 18, TypeScript, Vite, HTML Canvas API, WebSocket API браузера          |
+| Тесты      | pytest (+ anyio) для backend, vitest для frontend                            |
 
-Run `base44 --help` (or see the [CLI reference](https://docs.base44.com/developers/references/cli/commands/introduction)) for the full command surface.
+Стейт-менеджеры (Redux/Zustand/MobX) не используются — только React hooks.
+Для стилей — обычный CSS.
 
-## Run Locally
+## Возможности
 
-Three commands, from the project root:
+- создание комнаты и подключение к существующей комнате по ID или ссылке `/room/<room_id>`;
+- совместное рисование: freehand (карандаш), линия, прямоугольник, круг, текст;
+- выбор цвета (палитра + color picker) и толщины линии;
+- очистка холста для всех участников комнаты;
+- информация о комнате: ID, ссылка для приглашения, статус соединения, список участников;
+- WebSocket-протокол в JSON: `join`, `draw`, `clear`, `leave`, `ping` (ответ `pong`);
+- новому участнику сервер сразу отдаёт текущее состояние доски (`init`).
 
-```bash
-base44 login   # one-time per machine
-base44 link    # one-time per clone
-base44 dev     # local backend + frontend together
+## Структура проекта
+
+```text
+.
+├── backend/
+│   ├── main.py                 # FastAPI: HTTP endpoints + WebSocket endpoint
+│   ├── models.py               # Pydantic-модели (элементы рисунка, участники, запросы)
+│   ├── room_manager.py         # комнаты и их состояние в памяти процесса
+│   ├── websocket_manager.py    # соединения, рассылка, разбор сообщений
+│   ├── requirements.txt
+│   ├── pytest.ini
+│   └── tests/
+│       ├── conftest.py
+│       ├── test_rooms.py       # HTTP: health, создание/получение/список комнат
+│       └── test_websocket.py   # WebSocket: рассылка draw/clear, init для нового участника
+├── frontend/
+│   ├── index.html
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── .env.example
+│   └── src/
+│       ├── main.tsx
+│       ├── App.tsx             # маршруты: / и /room/:roomId
+│       ├── index.css
+│       ├── types/index.ts      # типы элементов и сообщений
+│       ├── services/
+│       │   ├── api.ts               # HTTP-запросы к backend
+│       │   ├── whiteboardSocket.ts  # WebSocket-клиент
+│       │   ├── whiteboardSocket.test.ts
+│       │   ├── canvasRenderer.ts    # отрисовка элементов на canvas
+│       │   └── session.ts           # временный user ID и имя в sessionStorage
+│       ├── hooks/useWhiteboard.ts   # подключение к комнате + состояние доски
+│       ├── components/Toolbar.tsx        # инструменты, цвет, толщина, очистка
+│       ├── components/WhiteboardCanvas.tsx  # холст и обработка мыши
+│       ├── components/RoomInfo.tsx       # комната, статус, участники
+│       └── pages/
+│           ├── HomePage.tsx    # создать комнату / подключиться по ID
+│           └── RoomPage.tsx    # комната с холстом
+├── README.md
+└── .gitignore
 ```
 
-Open the frontend URL that `base44 dev` prints (typically `http://localhost:5173`).
-
-Notes:
-
-- **Every fresh clone needs `base44 link`.** It writes `base44/.app.jsonc` (the app-id pointer), which is deliberately gitignored. Your app id is in the Builder URL (`app.base44.com/apps/<id>/...`); `base44 link --help` shows the non-interactive flags.
-- **`base44 dev` runs the frontend for you** (via `site.serveCommand` in this repo's `base44/config.jsonc`) — never run `npm run dev` yourself: alone it serves a UI with no backend behind it (`[base44] Proxy not enabled`, every `/api` call fails), and alongside `base44 dev` the second Vite silently takes the next port and you end up looking at the wrong one.
-- **The app must be published at least once for the UI to load under `base44 dev`.** The frontend boots by fetching app settings from the hosted app; before the first publish that fails and every page redirects to login. The local API works regardless.
-- Entities, functions, and auth run locally — entity data is **in-memory only**, wiped when `base44 dev` restarts. Everything else (Core integrations, OAuth login) is forwarded to your deployed app. Full breakdown: [Local development overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview).
-
-## Frontend Only, Hosted Backend
-
-To work on just the frontend against your app's live hosted backend:
+## Запуск backend
 
 ```bash
-base44 dev --remote
+cd backend
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
 ```
 
-⚠️ In this mode writes go to your app's **production data** — plain `base44 dev` keeps everything local.
+Проверка работоспособности: <http://localhost:8000/health> → `{"status": "ok", "rooms": 0, "connections": 0}`
 
-## Publish Your Changes
+HTTP-эндпоинты:
 
-After pushing your changes to git, open the Base44 dashboard and publish the app:
+| Метод | Путь                   | Описание                                  |
+| ----- | ---------------------- | ----------------------------------------- |
+| GET   | `/health`              | проверка работоспособности                |
+| POST  | `/api/rooms`           | создать комнату (`{"name": "..."}`)       |
+| GET   | `/api/rooms`           | список активных комнат                    |
+| GET   | `/api/rooms/{room_id}` | состояние комнаты: элементы и участники   |
+| WS    | `/ws/{room_id}`        | WebSocket комнаты                         |
+
+## Запуск frontend
 
 ```bash
-base44 dashboard open
+cd frontend
+npm install
+npm run dev
 ```
 
-This repo syncs to Base44 through git, so publish from the dashboard rather than `base44 deploy` — a CLI deploy ships your local tree directly, bypassing the sync, and the deployed state silently diverges from the repo.
+Откройте <http://localhost:5173>.
+Адреса backend по умолчанию: `http://localhost:8000` и `ws://localhost:8000`.
+Если backend запущен на другом порту, скопируйте `frontend/.env.example` в `frontend/.env` и поправьте значения.
 
-## Docs & Support
+## Тесты
 
-GitHub integration: [https://docs.base44.com/developers/app-code/local-development/github](https://docs.base44.com/developers/app-code/local-development/github)
+```bash
+cd backend && python -m pytest -q     # backend
+cd frontend && npm run test           # frontend (vitest)
+```
 
-Local development: [https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview)
+Тестов немного и покрытие низкое — расширение тестов запланировано на следующих этапах проекта.
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+## Как проверить WebSocket вручную
+
+1. Запустите backend и frontend.
+2. Откройте <http://localhost:5173> в двух окнах браузера (например, обычном и приватном).
+3. В первом окне создайте комнату — вы попадёте на `/room/<room_id>`; нажмите «Скопировать ссылку».
+4. Во втором окне вставьте ссылку в поле «ID комнаты или ссылка» и нажмите «Подключиться».
+5. Рисуйте в первом окне — во втором линии появляются почти сразу, счётчик участников равен 2.
+6. Нажмите «Очистить холст» — холст очищается у всех участников комнаты.
+7. Закройте второе окно — у первого участника список обновится (событие `leave`).
+
+Проверка через CLI:
+
+```bash
+npx wscat -c ws://localhost:8000/ws/demo-room
+# затем отправить:
+{"type":"join","user_id":"u1","name":"cli"}
+{"type":"draw","element":{"type":"line","x1":0,"y1":0,"x2":200,"y2":120,"color":"#111827","width":3}}
+{"type":"clear"}
+```
+
+Формат сообщений (JSON):
+
+```json
+{"type": "join", "user_id": "u1", "name": "Алиса"}
+{"type": "draw", "element": {"type": "rectangle", "x1": 10, "y1": 10, "x2": 120, "y2": 90, "color": "#2563eb", "width": 3}}
+{"type": "clear"}
+```
+
+Сервер → клиент: `init` (полное состояние доски), `draw`, `clear`, `join`, `leave`, `pong`, `error`.
+
+## Пример использования
+
+1. Преподаватель создаёт комнату и отправляет студентам ссылку `/room/a1b2c3d4`.
+2. Студенты открывают ссылку, каждый видит уже нарисованное и рисует поверх.
+3. Все изменения видны остальным сразу; в панели справа — список участников с цветами.
+4. В конце сессии холст очищается кнопкой «Очистить холст».
+
+## Известные ограничения MVP
+
+- **состояние только в памяти**: после перезапуска backend все комнаты и рисунки пропадают, комнаты никогда не удаляются автоматически;
+- **нет авторизации**: пользователь — случайный ID, сгенерированный в браузере (sessionStorage), имя необязательно;
+- **нет БД, Redis, истории, undo/redo, экспорта в PNG/SVG, чата и прав доступа**;
+- валидация WebSocket-сообщений минимальная (проверяется только поле `type`, для `draw` — наличие `element`), координаты, цвет и толщина не проверяются;
+- **нет автоматического переподключения** WebSocket: при обрыве связи нужно перезагрузить страницу;
+- CORS открыт полностью (`allow_origins=["*"]`) — допустимо только для локальной разработки;
+- рисование только мышью: touch-события не обработаны, на мобильных устройствах холст не рисует;
+- координаты хранятся без привязки к размеру окна: если участники открыли комнату с разной шириной холста, рисунок увидят в другом масштабе;
+- рассылка выполняется последовательно в одном цикле событий — при большом числе участников это узкое место;
+- тестов мало, покрытие существенно ниже целевого (≥60%).
+
+## Технические решения, намеренно оставленные простыми
+
+Эти места — естественные кандидаты на Code Review и рефакторинг:
+
+- `ConnectionManager.handle_message` — длинный метод с ветвлением по типам сообщений (высокая цикломатическая сложность);
+- валидация сообщений «по факту» в рантайме вместо схемы сообщений;
+- `RoomManager` и `ConnectionManager` частично дублируют хранение участников (`Room.participants` и `connections`);
+- в `WhiteboardCanvas` логика рисования смешана с обработкой событий мыши;
+- `useWhiteboard` совмещает транспорт, состояние доски и разбор протокола;
+- отрисовка помечена полной перерисовкой холста на каждое движение мыши — просто, но не оптимально;
+- ошибки логируются через `print`, нет структурного логирования и мониторинга;
+- отсутствуют линтеры, форматтеры, pre-commit и CI — они добавляются на следующих этапах курса.

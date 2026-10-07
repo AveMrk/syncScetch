@@ -1,0 +1,38 @@
+.room-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.room-page__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.canvas-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 320px;
+  margin: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.room-page__empty {
+  padding: 48px;
+  text-align: center;
+  color: #64748b;
+}
+
+@media (max-width: 720px) {
+  .room-page__body {
+    flex-direction: column-reverse;
+  }
+
+  .canvas-wrapper {
+    margin: 8px;
+  }
+}
